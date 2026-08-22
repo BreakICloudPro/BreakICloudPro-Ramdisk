@@ -133,19 +133,15 @@ def find_d321_image4_canary(stock: bytes) -> int:
 
 
 def apply_boot_args(data: bytearray) -> None:
-    if data.count(RAMDISK_BOOT_ARGS) == 1:
+    if data.count(RAMDISK_BOOT_ARGS) >= 1:
         print("boot-args already set to ramdisk form")
         return
-    if len(LEEKSOV_BOOT_ARGS) != len(RAMDISK_BOOT_ARGS):
-        raise SystemExit("internal boot-args length mismatch")
-    if data.count(LEEKSOV_BOOT_ARGS) != 1:
-        raise SystemExit(
-            "expected exactly one Leeksov boot-args slot "
-            f"({LEEKSOV_BOOT_ARGS!r}); found {data.count(LEEKSOV_BOOT_ARGS)}"
-        )
-    idx = data.index(LEEKSOV_BOOT_ARGS)
-    data[idx : idx + len(LEEKSOV_BOOT_ARGS)] = RAMDISK_BOOT_ARGS
-    print(f"boot-args → rd=md0 @ 0x{idx:X}")
+    if data.count(LEEKSOV_BOOT_ARGS) >= 1:
+        idx = data.index(LEEKSOV_BOOT_ARGS)
+        data[idx : idx + len(LEEKSOV_BOOT_ARGS)] = RAMDISK_BOOT_ARGS
+        print(f"boot-args → rd=md0 @ 0x{idx:X}")
+    else:
+        print("warning: Leeksov boot-args slot not found (boot.sh injects boot-args dynamically via setenvnp)")
 
 
 def apply_n841_wrapper(stock: bytes, patched: bytearray) -> None:

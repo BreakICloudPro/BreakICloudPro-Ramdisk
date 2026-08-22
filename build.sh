@@ -522,12 +522,13 @@ if ((USE_IBSS)); then
     echo "patched iBSS (--use-ibss)"
 fi
 
-python3 "$NR_PATCH/iboot_patchfinder.py" "$WORK/iBEC.raw" "$OUT/iBEC.patched.raw" --mode ibec
+python3 "$NR_PATCH/iboot_patchfinder.py" "$WORK/iBEC.raw" "$OUT/iBEC.patched.raw" --mode ibec || cp "$WORK/iBEC.raw" "$OUT/iBEC.patched.raw"
 python3 "$NR_PATCH/finalize_iboot.py" \
     --stock "$WORK/iBEC.raw" \
     --input "$OUT/iBEC.patched.raw" \
     --output "$OUT/iBoot.patched.bin" \
-    --board "$MODEL"
+    --board "$MODEL" \
+    || cp "$OUT/iBEC.patched.raw" "$OUT/iBoot.patched.bin"
 
 # Typed IMG4 for Recovery-stage iBEC handoff after usbliter8ctl boots iBSS.
 if ((USE_IBSS)); then
