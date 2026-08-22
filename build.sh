@@ -73,8 +73,15 @@ EOF
 
 while (($#)); do
     case "$1" in
-        --build|--version)
+        --version)
             (($# >= 2)) || { usage >&2; exit 64; }
+            VERSION_OVERRIDE="$2"
+            SELECTION="$2"
+            shift 2
+            ;;
+        --build)
+            (($# >= 2)) || { usage >&2; exit 64; }
+            BUILD_OVERRIDE="$2"
             SELECTION="$2"
             shift 2
             ;;
@@ -258,8 +265,8 @@ fi
 
 if [[ -n "$DIRECT_URL" ]]; then
     IPSW_URL="$DIRECT_URL"
-    BUILD="${SELECTION:-custom}"
-    VERSION="unknown"
+    BUILD="${BUILD_OVERRIDE:-${SELECTION:-custom}}"
+    VERSION="${VERSION_OVERRIDE:-unknown}"
 elif [[ -z "${IPSW_URL:-}" ]]; then
     MATCH="$("$JQ" -cer --arg selection "$SELECTION" '
         [.firmwares[] | select(.buildid == $selection or .version == $selection)][0]
@@ -495,13 +502,13 @@ if [[ -n "$(manifest_path RestoreSEP)" ]]; then
     cp "$CACHE/$(basename "$(manifest_path RestoreSEP)")" "$WORK/RestoreSEP.im4p"
 fi
 
-ipsw img4 im4p extract -o "$WORK/iBEC.raw" "$WORK/iBEC.im4p"
-ipsw img4 im4p extract -o "$WORK/kernelcache.raw" "$WORK/KernelCache.im4p"
+"$IMG4" -i "$WORK/iBEC.im4p" -o "$WORK/iBEC.raw"
+"$IMG4" -i "$WORK/KernelCache.im4p" -o "$WORK/kernelcache.raw"
 "$IMG4" -i "$WORK/RestoreRamDisk.im4p" -o "$WORK/ramdisk.dmg"
 
 # --- iBoot (Leeksov + board finalize, boot-args rd=md0) ---
 if ((USE_IBSS)); then
-    ipsw img4 im4p extract -o "$WORK/iBSS.raw" "$WORK/iBSS.im4p"
+    "$IMG4" -i "$WORK/iBSS.im4p" -o "$WORK/iBSS.raw"
     python3 "$NR_PATCH/iboot_patchfinder.py" \
         "$WORK/iBSS.raw" "$OUT/iBSS.patched.raw" --mode ibss
     # Same board finalize as iBEC when Leeksov slots exist (harmless no-op otherwise).
@@ -531,13 +538,13 @@ fi
 
 # SPTM/TXM only when the IPSW ships them (README: iOS 27-class on A12/A13).
 if ((HAS_SPTM)); then
-    ipsw img4 im4p extract -o "$WORK/SPTM.raw" "$WORK/SPTM.im4p"
+    "$IMG4" -i "$WORK/SPTM.im4p" -o "$WORK/SPTM.raw"
     python3 "$NR_PATCH/sptm_patchfinder.py" "$WORK/SPTM.raw" "$OUT/SPTM.patched.raw"
     "$IMG4" -i "$OUT/SPTM.patched.raw" -o "$BOOTCHAIN/sptm.img4" -A -T sptm -M "$IM4M"
     echo "patched SPTM"
 fi
 if ((HAS_TXM)); then
-    ipsw img4 im4p extract -o "$WORK/TXM.raw" "$WORK/TXM.im4p"
+    "$IMG4" -i "$WORK/TXM.im4p" -o "$WORK/TXM.raw"
     python3 "$NR_PATCH/txm_patchfinder.py" "$WORK/TXM.raw" "$OUT/TXM.patched.raw"
     "$IMG4" -i "$OUT/TXM.patched.raw" -o "$BOOTCHAIN/txm.img4" -A -T trst -M "$IM4M" \
         || "$IMG4" -i "$OUT/TXM.patched.raw" -o "$BOOTCHAIN/txm.img4" -A -M "$IM4M"
