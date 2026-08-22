@@ -89,12 +89,18 @@ PYTHON=python3
 command -v "$PYTHON" >/dev/null || bad "python3"
 if command -v "$PYTHON" >/dev/null; then
     ok "$PYTHON $($PYTHON --version 2>&1)"
-    "$PYTHON" -m pip install --upgrade pip >/dev/null 2>&1 || true
-    "$PYTHON" -m pip install -r "$ROOT/requirements.txt"
     if "$PYTHON" -c "import pyimg4, capstone" 2>/dev/null; then
-        ok "pyimg4 + capstone"
+        ok "pyimg4 + capstone (already available)"
     else
-        bad "pyimg4/capstone import failed"
+        "$PYTHON" -m pip install --break-system-packages --user -r "$ROOT/requirements.txt" 2>/dev/null \
+            || "$PYTHON" -m pip install --break-system-packages -r "$ROOT/requirements.txt" 2>/dev/null \
+            || "$PYTHON" -m pip install -r "$ROOT/requirements.txt" 2>/dev/null \
+            || true
+        if "$PYTHON" -c "import pyimg4, capstone" 2>/dev/null; then
+            ok "pyimg4 + capstone"
+        else
+            bad "pyimg4/capstone import failed"
+        fi
     fi
 fi
 
