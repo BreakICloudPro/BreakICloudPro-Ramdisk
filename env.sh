@@ -12,7 +12,7 @@ export NR_RESOURCES="$ROOT/resources"
 export NR_CACHE="$ROOT/cache"
 export NR_WORK="$ROOT/work"
 export NR_BOOTCHAIN_ROOT="$ROOT/bootchain"
-export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin:$NR_TOOLS${PATH:+:$PATH}"
+export PATH="$NR_TOOLS:/opt/homebrew/bin:/usr/local/bin:$PATH:/usr/bin:/bin:/usr/sbin:/sbin"
 # shellcheck source=scripts/banner.sh
 source "$ROOT/scripts/banner.sh"
 

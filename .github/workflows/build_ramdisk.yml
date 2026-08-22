@@ -81,9 +81,10 @@ jobs:
           chmod +x /usr/local/bin/ipsw /opt/homebrew/bin/ipsw tools/darwin/ipsw 2>/dev/null || true
           rm -rf /tmp/ipsw_dl
           
-          echo "=== Installing Python dependencies ==="
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
+          echo "=== Installing Python dependencies in all environments ==="
+          python3 -m pip install --break-system-packages -r requirements.txt || true
+          /opt/homebrew/bin/python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || true
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || true
 
       - name: "Run Setup & Verify Environment"
         run: |
