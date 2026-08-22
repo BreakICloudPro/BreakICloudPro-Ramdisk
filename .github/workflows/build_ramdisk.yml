@@ -79,7 +79,10 @@ jobs:
           sudo cp /tmp/ipsw_dl/ipsw /usr/local/bin/ipsw 2>/dev/null || cp /tmp/ipsw_dl/ipsw /opt/homebrew/bin/ipsw 2>/dev/null || true
           cp /tmp/ipsw_dl/ipsw tools/darwin/ipsw 2>/dev/null || true
           chmod +x /usr/local/bin/ipsw /opt/homebrew/bin/ipsw tools/darwin/ipsw 2>/dev/null || true
-          rm -rf /tmp/ipsw_dl
+          echo "=== Installing libpng and required system libraries ==="
+          brew install libpng libimobiledevice gnu-tar libusb curl || true
+          sudo mkdir -p /usr/local/opt/libpng/lib 2>/dev/null || true
+          sudo ln -sf /opt/homebrew/opt/libpng/lib/libpng16.16.dylib /usr/local/opt/libpng/lib/libpng16.16.dylib 2>/dev/null || true
           
           echo "=== Installing Python dependencies in all environments ==="
           python3 -m pip install --break-system-packages -r requirements.txt || true

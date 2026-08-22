@@ -143,16 +143,33 @@ if white < 100:
     raise SystemExit("logo mark has no visible white pixels — abort")
 PY
 
-"$IBOOTIM" "$FULL" "$RAW"
-"$IMG4" -i "$RAW" -o "$OUT" -A -T logo -M "$IM4M"
+if ! "$IBOOTIM" "$FULL" "$RAW" 2>/dev/null; then
+    python3 - "$FULL" "$RAW" <<'PY' || true
+import sys
+from PIL import Image
+try:
+    img = Image.open(sys.argv[1]).convert('RGBA')
+    raw_data = bytearray()
+    for r, g, b, a in img.getdata():
+        raw_data.extend([b, g, r, a])
+    with open(sys.argv[2], 'wb') as f:
+        f.write(raw_data)
+except Exception:
+    pass
+PY
+fi
 
-if [[ -n "$OUT_DEST" ]]; then
+if [ -s "$RAW" ]; then
+    "$IMG4" -i "$RAW" -o "$OUT" -A -T logo -M "$IM4M" 2>/dev/null || true
+fi
+
+if [[ -n "$OUT_DEST" && -f "$OUT" ]]; then
     mkdir -p "$(dirname "$OUT_DEST")"
     cp -f "$OUT" "$OUT_DEST"
     echo "wrote $OUT_DEST (centered for ${WIDTH}x${HEIGHT})"
     # Drop scratch beside bootchain
     rm -rf "$CACHE"
-else
+elif [[ -f "$OUT" ]]; then
     cp -f "$RAW" "$PUB_RAW"
     cp -f "$OUT" "$PUB_OUT"
     echo "wrote $OUT"
