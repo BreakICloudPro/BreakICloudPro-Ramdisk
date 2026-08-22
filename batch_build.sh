@@ -34,7 +34,7 @@ mkdir -p bootchain cache work
 TARGET_DEVICES=(
     "iPhone11,2:iPhone_XS:d321ap:0x8020"
     "iPhone11,4:iPhone_XS_Max_China:d331pap:0x8020"
-    "iPhone11,6:iPhone_XS_Max:d331ap:0x8020"
+    "iPhone11,6:iPhone_XS_Max_Global:d331ap:0x8020"
     "iPhone11,8:iPhone_XR:n841ap:0x8020"
     "iPhone12,1:iPhone_11:n104ap:0x8030"
     "iPhone12,3:iPhone_11_Pro:d421ap:0x8030"
