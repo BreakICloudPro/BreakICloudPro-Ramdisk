@@ -151,6 +151,24 @@ for item in reversed(filtered):
             }
             
         echo "[+] Successfully built: $FULL_TARGET_DIR"
+        
+        # 1. Zip individual bootchain directory immediately
+        ZIP_NAME="${TARGET_DIR_NAME}.zip"
+        ZIP_PATH="${SCRIPT_DIR}/bootchain/${CATEGORY_DIR}/${ZIP_NAME}"
+        (
+            cd "${SCRIPT_DIR}/bootchain/${CATEGORY_DIR}"
+            zip -r -q "$ZIP_NAME" "$TARGET_DIR_NAME"
+        )
+        echo "[+] Compressed individual bootchain: $ZIP_PATH"
+        
+        # 2. Upload to GitHub Releases in real-time if running on GitHub Actions
+        if [ -n "${GITHUB_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+            RELEASE_TAG="Bootchains-${MODEL_NAME}"
+            echo "[*] Uploading $ZIP_NAME to GitHub Release: $RELEASE_TAG..."
+            gh release create "$RELEASE_TAG" --title "Bootchains for ${MODEL_NAME}" --notes "Automated bootchain builds for ${MODEL_NAME}" 2>/dev/null || true
+            gh release upload "$RELEASE_TAG" "$ZIP_PATH" --clobber || true
+            echo "[+] Uploaded $ZIP_NAME to GitHub Releases successfully!"
+        fi
     done
 done
 
