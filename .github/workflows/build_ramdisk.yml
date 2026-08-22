@@ -1,0 +1,188 @@
+name: Build iOS Ramdisk & Bootchain (macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_device:
+        description: "Target Apple Device Model"
+        required: true
+        type: choice
+        default: "iPhone_XS"
+        options:
+          - "iPhone_XS"
+          - "iPhone_XS_Max_Global"
+          - "iPhone_XS_Max_China"
+          - "iPhone_XR"
+          - "iPhone_11"
+          - "iPhone_11_Pro"
+          - "iPhone_11_Pro_Max"
+          - "iPhone_SE_2"
+          - "BATCH_ALL_A12_A13"
+      ios_version:
+        description: "iOS Version (e.g., 18.7.9, 17.0, 18.3, or ALL for batch)"
+        required: true
+        type: string
+        default: "18.7.9"
+      build_id:
+        description: "Build ID (e.g. 22H355, optional - leave empty to auto-resolve)"
+        required: false
+        type: string
+        default: ""
+      runner_os:
+        description: "macOS Runner Architecture"
+        required: true
+        type: choice
+        default: "macos-13"
+        options:
+          - "macos-13"
+          - "macos-14"
+          - "macos-15"
+      kernel_mode:
+        description: "Kernel Patch Mode"
+        required: true
+        type: choice
+        default: "patched"
+        options:
+          - "patched"
+          - "stock"
+
+jobs:
+  build-ramdisk:
+    name: "Build ${{ inputs.target_device }} (iOS ${{ inputs.ios_version }})"
+    runs-on: ${{ inputs.runner_os }}
+    timeout-minutes: 360
+
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "Set Up Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: "Install System Dependencies (Homebrew & Tools)"
+        run: |
+          echo "=== Setting execute permissions on tools & scripts ==="
+          chmod +x setup.sh build.sh batch_build.sh boot.sh scripts/*.sh tools/darwin/* 2>/dev/null || true
+          
+          echo "=== Installing blacktop/tap/ipsw and required libraries ==="
+          brew install blacktop/tap/ipsw libimobiledevice gnu-tar libusb curl || true
+          
+          echo "=== Installing Python dependencies ==="
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+
+      - name: "Run Setup & Verify Environment"
+        run: |
+          ./setup.sh
+
+      - name: "Execute Ramdisk & Bootchain Build"
+        run: |
+          TARGET="${{ inputs.target_device }}"
+          VERSION="${{ inputs.ios_version }}"
+          BUILD="${{ inputs.build_id }}"
+          KERNEL="${{ inputs.kernel_mode }}"
+          
+          echo "=================================================================="
+          echo "[*] Launching Build Job"
+          echo "[*] Target:  $TARGET"
+          echo "[*] iOS:     $VERSION"
+          echo "[*] BuildID: ${BUILD:-auto-resolve}"
+          echo "[*] Kernel:  $KERNEL"
+          echo "=================================================================="
+          
+          if [ "$TARGET" = "BATCH_ALL_A12_A13" ] || [ "$VERSION" = "ALL" ]; then
+            echo "[*] Running Batch Multi-Target Build..."
+            ./batch_build.sh
+          else
+            # Resolve Device Parameters
+            case "$TARGET" in
+              iPhone_XS)
+                PRODUCT="iPhone11,2"
+                MODEL="d321ap"
+                CPID="0x8020"
+                ;;
+              iPhone_XS_Max_Global)
+                PRODUCT="iPhone11,6"
+                MODEL="d331ap"
+                CPID="0x8020"
+                ;;
+              iPhone_XS_Max_China)
+                PRODUCT="iPhone11,4"
+                MODEL="d331pap"
+                CPID="0x8020"
+                ;;
+              iPhone_XR)
+                PRODUCT="iPhone11,8"
+                MODEL="n841ap"
+                CPID="0x8020"
+                ;;
+              iPhone_11)
+                PRODUCT="iPhone12,1"
+                MODEL="n104ap"
+                CPID="0x8030"
+                ;;
+              iPhone_11_Pro)
+                PRODUCT="iPhone12,3"
+                MODEL="d421ap"
+                CPID="0x8030"
+                ;;
+              iPhone_11_Pro_Max)
+                PRODUCT="iPhone12,5"
+                MODEL="d431ap"
+                CPID="0x8030"
+                ;;
+              iPhone_SE_2)
+                PRODUCT="iPhone12,8"
+                MODEL="d79ap"
+                CPID="0x8030"
+                ;;
+              *)
+                echo "[!] Unknown device target: $TARGET" >&2
+                exit 1
+                ;;
+            esac
+            
+            MAJOR_VER="$(echo "$VERSION" | cut -d. -f1)"
+            CATEGORY_DIR="iOS_${MAJOR_VER}"
+            OUT_NAME="${CATEGORY_DIR}/${TARGET}-${VERSION}-ramdisk"
+            
+            BUILD_ARGS=(
+              --product "$PRODUCT"
+              --model "$MODEL"
+              --cpid "$CPID"
+              --kernel "$KERNEL"
+              --with-fw
+            )
+            
+            if [ -n "$BUILD" ]; then
+              BUILD_ARGS+=( --build "$BUILD" )
+              OUT_NAME="${CATEGORY_DIR}/${TARGET}-${VERSION}-${BUILD}-ramdisk"
+            else
+              BUILD_ARGS+=( --version "$VERSION" )
+            fi
+            
+            BUILD_ARGS+=( --out-name "$OUT_NAME" )
+            
+            echo "[*] Executing: ./build.sh ${BUILD_ARGS[*]}"
+            ./build.sh "${BUILD_ARGS[@]}"
+          fi
+
+      - name: "Verify Generated Bootchain Artifacts"
+        run: |
+          echo "=================================================================="
+          echo "[*] Validating Generated Bootchain Directories..."
+          echo "=================================================================="
+          find bootchain -type f | sort
+          echo ""
+          echo "[+] Total files generated: $(find bootchain -type f | wc -l)"
+
+      - name: "Upload Bootchain Artifacts (Zip)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "bootchain-${{ inputs.target_device }}-${{ inputs.ios_version }}"
+          path: bootchain/
+          retention-days: 14
+          if-no-files-found: error
