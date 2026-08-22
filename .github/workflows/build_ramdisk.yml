@@ -19,10 +19,10 @@ on:
           - "iPhone_SE_2"
           - "BATCH_ALL_A12_A13"
       ios_version:
-        description: "iOS Version (e.g., 18.7.9, 17.0, 18.3, or ALL for batch)"
+        description: "iOS Version (Enter 'ALL' to build all iOS 17+ releases for this device, or e.g. 18.7.9)"
         required: true
         type: string
-        default: "18.7.9"
+        default: "ALL"
       build_id:
         description: "Build ID (e.g. 22H355, optional - leave empty to auto-resolve)"
         required: false
@@ -48,7 +48,7 @@ on:
 
 jobs:
   build-ramdisk:
-    name: "Build ${{ inputs.target_device }} (iOS ${{ inputs.ios_version }})"
+    name: "${{ inputs.target_device }} (iOS: ${{ inputs.ios_version }})"
     runs-on: ${{ inputs.runner_os }}
     timeout-minutes: 360
 
@@ -87,17 +87,20 @@ jobs:
           
           echo "=================================================================="
           echo "[*] Launching Build Job"
-          echo "[*] Target:  $TARGET"
-          echo "[*] iOS:     $VERSION"
-          echo "[*] BuildID: ${BUILD:-auto-resolve}"
-          echo "[*] Kernel:  $KERNEL"
+          echo "[*] Target Device: $TARGET"
+          echo "[*] iOS Version:   $VERSION"
+          echo "[*] BuildID:       ${BUILD:-auto-resolve}"
+          echo "[*] Kernel:        $KERNEL"
           echo "=================================================================="
           
-          if [ "$TARGET" = "BATCH_ALL_A12_A13" ] || [ "$VERSION" = "ALL" ]; then
-            echo "[*] Running Batch Multi-Target Build..."
+          if [ "$VERSION" = "ALL" ] || [ "$VERSION" = "all" ] || [ -z "$VERSION" ]; then
+            echo "[*] Building ALL iOS 17+ releases for device: $TARGET..."
+            ./batch_build.sh --device "$TARGET"
+          elif [ "$TARGET" = "BATCH_ALL_A12_A13" ]; then
+            echo "[*] Building ALL devices and ALL iOS releases..."
             ./batch_build.sh
           else
-            # Resolve Device Parameters
+            # Single Specific Version Build
             case "$TARGET" in
               iPhone_XS)
                 PRODUCT="iPhone11,2"

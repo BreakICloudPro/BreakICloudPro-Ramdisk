@@ -42,13 +42,39 @@ TARGET_DEVICES=(
     "iPhone12,8:iPhone_SE_2:d79ap:0x8030"
 )
 
+FILTER_DEVICE=""
+while (($#)); do
+    case "$1" in
+        --device|-d)
+            (($# >= 2)) || { echo "error: --device needs a model name" >&2; exit 1; }
+            FILTER_DEVICE="$2"
+            shift 2
+            ;;
+        *)
+            FILTER_DEVICE="$1"
+            shift
+            ;;
+    esac
+done
+
 echo "=================================================================="
 echo "[*] BreakICloudPro A12/A13 Categorized Batch Bootchain Builder (macOS)"
+if [ -n "$FILTER_DEVICE" ] && [ "$FILTER_DEVICE" != "ALL" ] && [ "$FILTER_DEVICE" != "ALL_DEVICES" ] && [ "$FILTER_DEVICE" != "BATCH_ALL_A12_A13" ]; then
+    echo "[*] Target Filter: ONLY $FILTER_DEVICE (Building All iOS Versions for this device)"
+else
+    echo "[*] Target Filter: ALL A12 & A13 Devices"
+fi
 echo "[*] Output Directory Hierarchy: bootchain/iOS_<Major>/<Target>/"
 echo "=================================================================="
 
 for dev_entry in "${TARGET_DEVICES[@]}"; do
     IFS=":" read -r PRODUCT MODEL_NAME BOARD CPID <<< "$dev_entry"
+    
+    if [ -n "$FILTER_DEVICE" ] && [ "$FILTER_DEVICE" != "ALL" ] && [ "$FILTER_DEVICE" != "ALL_DEVICES" ] && [ "$FILTER_DEVICE" != "BATCH_ALL_A12_A13" ]; then
+        if [ "$MODEL_NAME" != "$FILTER_DEVICE" ] && [ "$PRODUCT" != "$FILTER_DEVICE" ] && [ "$BOARD" != "$FILTER_DEVICE" ]; then
+            continue
+        fi
+    fi
     
     echo ""
     echo "=================================================================="
