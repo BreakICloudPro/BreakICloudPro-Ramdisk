@@ -69,8 +69,17 @@ jobs:
           echo "=== Setting execute permissions on tools & scripts ==="
           chmod +x setup.sh build.sh batch_build.sh boot.sh scripts/*.sh tools/darwin/* 2>/dev/null || true
           
-          echo "=== Installing blacktop/tap/ipsw and required libraries ==="
-          brew install blacktop/tap/ipsw libimobiledevice gnu-tar libusb curl || true
+          echo "=== Downloading and installing ipsw binary directly ==="
+          ARCH_SUFFIX="macOS_arm64"
+          [[ "$(uname -m)" == "x86_64" ]] && ARCH_SUFFIX="macOS_x86_64"
+          IPSW_VER="3.1.530"
+          mkdir -p /tmp/ipsw_dl
+          curl -fsSL "https://github.com/blacktop/ipsw/releases/download/v${IPSW_VER}/ipsw_${IPSW_VER}_${ARCH_SUFFIX}.tar.gz" -o /tmp/ipsw_dl/ipsw.tar.gz
+          tar -xzf /tmp/ipsw_dl/ipsw.tar.gz -C /tmp/ipsw_dl
+          sudo cp /tmp/ipsw_dl/ipsw /usr/local/bin/ipsw 2>/dev/null || cp /tmp/ipsw_dl/ipsw /opt/homebrew/bin/ipsw 2>/dev/null || true
+          cp /tmp/ipsw_dl/ipsw tools/darwin/ipsw 2>/dev/null || true
+          chmod +x /usr/local/bin/ipsw /opt/homebrew/bin/ipsw tools/darwin/ipsw 2>/dev/null || true
+          rm -rf /tmp/ipsw_dl
           
           echo "=== Installing Python dependencies ==="
           python3 -m pip install --upgrade pip

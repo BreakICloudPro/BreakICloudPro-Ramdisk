@@ -46,14 +46,35 @@ for pkg in "${BREW_PKGS[@]}"; do
     fi
 done
 
+export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+export PATH="$HOME/Library/Python/3.9/bin:$HOME/Library/Python/3.11/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 if command -v ipsw >/dev/null 2>&1; then
     ok "ipsw $(ipsw version 2>/dev/null | head -1 || echo present)"
 else
     echo "  installing ipsw..."
+    brew trust blacktop/tap 2>/dev/null || true
     if brew install blacktop/tap/ipsw 2>/dev/null || brew install ipsw 2>/dev/null; then
         ok "ipsw installed"
     else
-        bad "ipsw — install from https://github.com/blacktop/ipsw (brew install blacktop/tap/ipsw)"
+        echo "  downloading ipsw binary directly..."
+        ARCH_SUFFIX="macOS_arm64"
+        [[ "$(uname -m)" == "x86_64" ]] && ARCH_SUFFIX="macOS_x86_64"
+        IPSW_TMP="$(mktemp -d)"
+        IPSW_VER="3.1.530"
+        curl -fsSL "https://github.com/blacktop/ipsw/releases/download/v${IPSW_VER}/ipsw_${IPSW_VER}_${ARCH_SUFFIX}.tar.gz" -o "$IPSW_TMP/ipsw.tar.gz" 2>/dev/null || true
+        if [ -s "$IPSW_TMP/ipsw.tar.gz" ]; then
+            tar -xzf "$IPSW_TMP/ipsw.tar.gz" -C "$IPSW_TMP"
+            mkdir -p "$NR_TOOLS" /opt/homebrew/bin /usr/local/bin 2>/dev/null || true
+            cp "$IPSW_TMP/ipsw" "$NR_TOOLS/ipsw" 2>/dev/null || true
+            cp "$IPSW_TMP/ipsw" /opt/homebrew/bin/ipsw 2>/dev/null || true
+            cp "$IPSW_TMP/ipsw" /usr/local/bin/ipsw 2>/dev/null || true
+            chmod +x "$NR_TOOLS/ipsw" /opt/homebrew/bin/ipsw /usr/local/bin/ipsw 2>/dev/null || true
+            rm -rf "$IPSW_TMP"
+            ok "ipsw installed (direct binary)"
+        else
+            bad "ipsw — install from https://github.com/blacktop/ipsw (brew install blacktop/tap/ipsw)"
+        fi
     fi
 fi
 
