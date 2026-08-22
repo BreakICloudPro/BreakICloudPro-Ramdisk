@@ -32,11 +32,11 @@ on:
         description: "macOS Runner Architecture"
         required: true
         type: choice
-        default: "macos-13"
+        default: "macos-14"
         options:
-          - "macos-13"
           - "macos-14"
           - "macos-15"
+          - "macos-13"
       kernel_mode:
         description: "Kernel Patch Mode"
         required: true
