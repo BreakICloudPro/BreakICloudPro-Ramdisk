@@ -1,0 +1,227 @@
+name: Build iOS Ramdisk & Bootchain (macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_device:
+        description: "Target Apple Device Model"
+        required: true
+        type: choice
+        default: "iPhone_XS"
+        options:
+          - "iPhone_XS"
+          - "iPhone_XS_Max_Global"
+          - "iPhone_XS_Max_China"
+          - "iPhone_XR"
+          - "iPhone_11"
+          - "iPhone_11_Pro"
+          - "iPhone_11_Pro_Max"
+          - "iPhone_SE_2"
+          - "BATCH_ALL_A12_A13"
+      ios_version:
+        description: "iOS Version (Enter 'ALL' to build all iOS 17+ releases for this device, or e.g. 18.7.9)"
+        required: true
+        type: string
+        default: "ALL"
+      build_id:
+        description: "Build ID (e.g. 22H355, optional - leave empty to auto-resolve)"
+        required: false
+        type: string
+        default: ""
+      runner_os:
+        description: "macOS Runner Architecture"
+        required: true
+        type: choice
+        default: "macos-14"
+        options:
+          - "macos-14"
+          - "macos-15"
+          - "macos-13"
+      kernel_mode:
+        description: "Kernel Patch Mode"
+        required: true
+        type: choice
+        default: "patched"
+        options:
+          - "patched"
+          - "stock"
+
+jobs:
+  build-ramdisk:
+    name: "${{ inputs.target_device }} (iOS: ${{ inputs.ios_version }})"
+    runs-on: ${{ inputs.runner_os }}
+    timeout-minutes: 360
+    permissions:
+      contents: write
+
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "Set Up Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: "Install System Dependencies (Homebrew & Tools)"
+        run: |
+          echo "=== Setting execute permissions on tools & scripts ==="
+          chmod +x setup.sh build.sh batch_build.sh boot.sh scripts/*.sh tools/darwin/* 2>/dev/null || true
+          
+          echo "=== Downloading and installing ipsw binary directly ==="
+          ARCH_SUFFIX="macOS_arm64"
+          [[ "$(uname -m)" == "x86_64" ]] && ARCH_SUFFIX="macOS_x86_64"
+          IPSW_VER="3.1.530"
+          mkdir -p /tmp/ipsw_dl
+          curl -fsSL "https://github.com/blacktop/ipsw/releases/download/v${IPSW_VER}/ipsw_${IPSW_VER}_${ARCH_SUFFIX}.tar.gz" -o /tmp/ipsw_dl/ipsw.tar.gz
+          tar -xzf /tmp/ipsw_dl/ipsw.tar.gz -C /tmp/ipsw_dl
+          sudo cp /tmp/ipsw_dl/ipsw /usr/local/bin/ipsw 2>/dev/null || cp /tmp/ipsw_dl/ipsw /opt/homebrew/bin/ipsw 2>/dev/null || true
+          cp /tmp/ipsw_dl/ipsw tools/darwin/ipsw 2>/dev/null || true
+          chmod +x /usr/local/bin/ipsw /opt/homebrew/bin/ipsw tools/darwin/ipsw 2>/dev/null || true
+          echo "=== Installing libpng and required system libraries ==="
+          brew install libpng libimobiledevice gnu-tar libusb curl || true
+          sudo mkdir -p /usr/local/opt/libpng/lib 2>/dev/null || true
+          sudo ln -sf /opt/homebrew/opt/libpng/lib/libpng16.16.dylib /usr/local/opt/libpng/lib/libpng16.16.dylib 2>/dev/null || true
+          
+          echo "=== Installing Python dependencies in all environments ==="
+          python3 -m pip install --break-system-packages -r requirements.txt || true
+          /opt/homebrew/bin/python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || true
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt 2>/dev/null || true
+
+      - name: "Run Setup & Verify Environment"
+        run: |
+          ./setup.sh
+
+      - name: "Execute Ramdisk & Bootchain Build"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET="${{ inputs.target_device }}"
+          VERSION="${{ inputs.ios_version }}"
+          BUILD="${{ inputs.build_id }}"
+          KERNEL="${{ inputs.kernel_mode }}"
+          
+          echo "=================================================================="
+          echo "[*] Launching Build Job"
+          echo "[*] Target Device: $TARGET"
+          echo "[*] iOS Version:   $VERSION"
+          echo "[*] BuildID:       ${BUILD:-auto-resolve}"
+          echo "[*] Kernel:        $KERNEL"
+          echo "=================================================================="
+          
+          if [ "$VERSION" = "ALL" ] || [ "$VERSION" = "all" ] || [ -z "$VERSION" ]; then
+            echo "[*] Building ALL iOS 17+ releases for device: $TARGET..."
+            ./batch_build.sh --device "$TARGET"
+          elif [ "$TARGET" = "BATCH_ALL_A12_A13" ]; then
+            echo "[*] Building ALL devices and ALL iOS releases..."
+            ./batch_build.sh
+          else
+            # Single Specific Version Build
+            case "$TARGET" in
+              iPhone_XS)
+                PRODUCT="iPhone11,2"
+                MODEL="d321ap"
+                CPID="0x8020"
+                ;;
+              iPhone_XS_Max_Global)
+                PRODUCT="iPhone11,6"
+                MODEL="d331ap"
+                CPID="0x8020"
+                ;;
+              iPhone_XS_Max_China)
+                PRODUCT="iPhone11,4"
+                MODEL="d331pap"
+                CPID="0x8020"
+                ;;
+              iPhone_XR)
+                PRODUCT="iPhone11,8"
+                MODEL="n841ap"
+                CPID="0x8020"
+                ;;
+              iPhone_11)
+                PRODUCT="iPhone12,1"
+                MODEL="n104ap"
+                CPID="0x8030"
+                ;;
+              iPhone_11_Pro)
+                PRODUCT="iPhone12,3"
+                MODEL="d421ap"
+                CPID="0x8030"
+                ;;
+              iPhone_11_Pro_Max)
+                PRODUCT="iPhone12,5"
+                MODEL="d431ap"
+                CPID="0x8030"
+                ;;
+              iPhone_SE_2)
+                PRODUCT="iPhone12,8"
+                MODEL="d79ap"
+                CPID="0x8030"
+                ;;
+              *)
+                echo "[!] Unknown device target: $TARGET" >&2
+                exit 1
+                ;;
+            esac
+            
+            MAJOR_VER="$(echo "$VERSION" | cut -d. -f1)"
+            CATEGORY_DIR="iOS_${MAJOR_VER}"
+            OUT_NAME="${CATEGORY_DIR}/${TARGET}-${VERSION}-ramdisk"
+            
+            BUILD_ARGS=(
+              --product "$PRODUCT"
+              --model "$MODEL"
+              --cpid "$CPID"
+              --kernel "$KERNEL"
+              --with-fw
+            )
+            
+            if [ -n "$BUILD" ]; then
+              BUILD_ARGS+=( --build "$BUILD" )
+              OUT_NAME="${CATEGORY_DIR}/${TARGET}-${VERSION}-${BUILD}-ramdisk"
+            else
+              BUILD_ARGS+=( --version "$VERSION" )
+            fi
+            
+            BUILD_ARGS+=( --out-name "$OUT_NAME" )
+            
+            echo "[*] Executing: ./build.sh ${BUILD_ARGS[*]}"
+            ./build.sh "${BUILD_ARGS[@]}"
+            
+            # Package and upload to GitHub Releases
+            TARGET_DIR="bootchain/${OUT_NAME}"
+            if [ -d "$TARGET_DIR" ]; then
+              ZIP_NAME="$(basename "$TARGET_DIR").zip"
+              echo "[*] Packaging $ZIP_NAME..."
+              (cd "bootchain/${CATEGORY_DIR}" && zip -r -9 "/tmp/${ZIP_NAME}" "$(basename "$TARGET_DIR")")
+              
+              RELEASE_TAG="Bootchains-${TARGET}"
+              if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+                echo "[*] Creating Release tag: $RELEASE_TAG"
+                gh release create "$RELEASE_TAG" \
+                  --title "Bootchains for $TARGET" \
+                  --notes "Automated bootchain builds for $TARGET" || true
+              fi
+              
+              echo "[*] Uploading /tmp/${ZIP_NAME} to GitHub Release $RELEASE_TAG..."
+              gh release upload "$RELEASE_TAG" "/tmp/${ZIP_NAME}" --clobber || true
+            fi
+          fi
+
+      - name: "Verify Generated Bootchain Artifacts"
+        run: |
+          echo "=================================================================="
+          echo "[*] Validating Generated Bootchain Directories..."
+          echo "=================================================================="
+          find bootchain -type f | sort
+          echo ""
+          echo "[+] Total files generated: $(find bootchain -type f | wc -l)"
+
+      - name: "Upload Bootchain Artifacts (Zip)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "bootchain-${{ inputs.target_device }}-${{ inputs.ios_version }}"
+          path: bootchain/
+          retention-days: 14
+          if-no-files-found: error
